@@ -8,6 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper.{HasRegMap, RegField}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
+import freechips.rocketchip.tile.{PktGen}
 import testchipip.{StreamIO, StreamChannel, TLHelper}
 import IceNetConsts._
 
@@ -374,6 +375,21 @@ trait HasPeripheryIceNICModuleImp extends LazyModuleImp {
     sim.io.reset := reset
     sim.io.net <> net
   }
+
+  def connectPktGen() {
+    net.macAddr := PlusArg("macaddr")
+    net.rlimit.inc := PlusArg("rlimit-inc", 1)
+    net.rlimit.period := PlusArg("rlimit-period", 1)
+    net.rlimit.size := PlusArg("rlimit-size", 8)
+    net.pauser.threshold := PlusArg("pauser-threshold", 2 * packetWords)
+    net.pauser.quanta := PlusArg("pauser-quanta", 2 * packetQuanta)
+    net.pauser.refresh := PlusArg("pauser-refresh", packetWords)
+
+    val pktGen = Module(new PktGen)
+    pktGen.io.net.in <> net.out
+    net.in <> pktGen.io.net.out
+  }
+
 }
 
 class NICIOvonly extends Bundle {
