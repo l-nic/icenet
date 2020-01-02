@@ -319,12 +319,20 @@ class IceNIC(address: BigInt, beatBytes: Int = 8,
   }
 }
 
-class SimNetwork extends BlackBox {
+class SimNetwork extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clock = Input(Clock())
     val reset = Input(Bool())
     val net = Flipped(new NICIO)
   })
+
+  addResource("/icenet/vsrc/SimNetwork.v")
+  addResource("/icenet/csrc/SimNetwork.cc")
+  addResource("/icenet/csrc/switch.h")
+  addResource("/icenet/csrc/switch.cc")
+  addResource("/icenet/csrc/device.h")
+  addResource("/icenet/csrc/device.cc")
+  addResource("/icenet/csrc/packet.h")
 }
 
 trait HasPeripheryIceNIC  { this: BaseSubsystem =>
