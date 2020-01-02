@@ -8,10 +8,10 @@ object IceNetConsts {
   val NET_LEN_BITS = 16
 
   val ETH_MAX_BYTES = 1520
-  val ETH_HEAD_BYTES = 16
+  val ETH_HEAD_BYTES = 14
   val ETH_MAC_BITS = 48
   val ETH_TYPE_BITS = 16
-  val ETH_PAD_BITS = 16
+  val ETH_PAD_BITS = 0 // NOTE(sibanez): this was 16 before ...
 
   val IPV4_HEAD_BYTES = 20
   val UDP_HEAD_BYTES = 8
