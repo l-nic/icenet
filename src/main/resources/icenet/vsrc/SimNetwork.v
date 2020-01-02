@@ -37,12 +37,17 @@ module SimNetwork(
     output        net_in_bits_last,
 
     output [47:0] net_macAddr,
+    // rate limiter settings
     output [7:0]  net_rlimit_inc,
     output [7:0]  net_rlimit_period,
-    output [7:0]  net_rlimit_size
+    output [7:0]  net_rlimit_size,
+    // pauser settings - NOTE: currently unused
+    output [15:0] net_pauser_threshold,
+    output [15:0] net_pauser_quanta,
+    output [15:0] net_pauser_refresh
 );
 
-    string devname = "";
+    string devname = "tap0";
     int rlimit_gbps = 64;
     byte rlimit_inc = 1;
     byte rlimit_period = 1;
@@ -67,6 +72,10 @@ module SimNetwork(
         dummy = $value$plusargs("netdev=%s", devname);
         network_init(devname, rlimit_gbps, rlimit_inc, rlimit_period);
     end
+    // NOTE: pauser settings are currently unused
+    assign net_pauser_threshold = 0;
+    assign net_pauser_quanta = 0;
+    assign net_pauser_refresh = 0;
 
     /* verilator lint_off WIDTH */
     always @(posedge clock) begin

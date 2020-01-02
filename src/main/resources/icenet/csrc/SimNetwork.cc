@@ -4,6 +4,8 @@
 #include "device.h"
 #include "switch.h"
 
+#define NIC_MAC_ADDR 0x084433221108
+
 class NetworkSwitch *netsw = NULL;
 class NetworkDevice *netdev = NULL;
 
@@ -30,7 +32,7 @@ extern "C" void network_init(
     *rlimit_period = (period / gcd) - 1;
 
     netsw = new NetworkSwitch(devname);
-    netdev = new NetworkDevice(random_macaddr());
+    netdev = new NetworkDevice(NIC_MAC_ADDR);
 
     netsw->add_device(netdev);
 }
