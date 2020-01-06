@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper.{HasRegMap, RegField}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.tile.{PktGen}
+import freechips.rocketchip.tile.{PktGen, LatencyModule}
 import testchipip.{StreamIO, StreamChannel, TLHelper}
 import IceNetConsts._
 
@@ -379,9 +379,16 @@ trait HasPeripheryIceNICModuleImp extends LazyModuleImp {
 
   def connectSimNetwork(clock: Clock, reset: Bool) {
     val sim = Module(new SimNetwork)
+    val latency = Module(new LatencyModule)
     sim.io.clock := clock
     sim.io.reset := reset
-    sim.io.net <> net
+    sim.io.net <> latency.io.net
+    latency.io.nic.in <> net.out
+    net.in <> latency.io.nic.out
+    // connect additional IO
+    net.macAddr := sim.io.net.macAddr
+    net.rlimit := sim.io.net.rlimit
+    net.pauser := sim.io.net.pauser
   }
 
   def connectPktGen() {
