@@ -38,6 +38,9 @@ class StreamReader(nXacts: Int, outFlits: Int, maxBytes: Int)
     val aligner = Module(new Aligner(dataBits))
     aligner.io.in <> buffer.io.out
     io.out <> aligner.io.out
+    // NOTE: it's not a good idea to simply swap byte order here because then
+    //   header fields don't end up in the right memory locations.
+    // io.out.bits.data := reverse_bytes(aligner.io.out.bits.data, dataBits/8)
   }
 }
 
@@ -231,6 +234,8 @@ class StreamWriter(nXacts: Int, maxBytes: Int)
 
     val overhang = RegInit(0.U(dataBits.W))
     val sendTrail = bytesToSend <= extraBytes
+    // NOTE: it's not a good idea to simply swap byte order here because then 
+    //   header fields don't end up in the right location
     val fulldata = (overhang | (io.in.bits.data << Cat(baseByteOff, 0.U(3.W))))
 
     val fromSource = Mux(newBlock, xactId, headXact)
