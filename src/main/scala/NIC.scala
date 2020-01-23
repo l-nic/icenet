@@ -13,8 +13,8 @@ import testchipip.{StreamIO, StreamChannel, TLHelper}
 import IceNetConsts._
 
 case class NICConfig(
-  inBufFlits: Int  = 2 * ETH_MAX_BYTES / NET_IF_BYTES,
-  outBufFlits: Int = 2 * ETH_MAX_BYTES / NET_IF_BYTES,
+  inBufFlits: Int  = 8 * ETH_MAX_BYTES / NET_IF_BYTES,
+  outBufFlits: Int = 8 * ETH_MAX_BYTES / NET_IF_BYTES,
   nMemXacts: Int = 8,
   maxAcquireBytes: Int = 64,
   ctrlQueueDepth: Int = 10,
