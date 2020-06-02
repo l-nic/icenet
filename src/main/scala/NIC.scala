@@ -8,7 +8,8 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper.{HasRegMap, RegField}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import testchipip.{StreamIO, StreamChannel, TLHelper}
+import freechips.rocketchip.rocket.{StreamIO, StreamChannel}
+import testchipip.TLHelper
 import IceNetConsts._
 
 case class NICConfig(

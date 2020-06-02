@@ -9,7 +9,8 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.unittest.{UnitTest, UnitTestIO}
 import freechips.rocketchip.util.{LatencyPipe, TwoWayCounter, UIntIsOneOf}
-import testchipip.{StreamIO, StreamChannel, TLHelper}
+import freechips.rocketchip.rocket.{StreamIO, StreamChannel}
+import testchipip.TLHelper
 import scala.math.max
 import IceNetConsts._
 

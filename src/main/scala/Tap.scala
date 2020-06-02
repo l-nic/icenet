@@ -5,7 +5,8 @@ import chisel3.util._
 import freechips.rocketchip.unittest.UnitTest
 import freechips.rocketchip.util.UIntIsOneOf
 import scala.math.max
-import testchipip._
+// import testchipip._
+import freechips.rocketchip.rocket.StreamChannel
 import IceNetConsts._
 
 class NetworkTap[T <: Data](

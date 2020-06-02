@@ -5,7 +5,8 @@ import chisel3.util._
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, IdRange}
 import freechips.rocketchip.util.DecoupledHelper
-import testchipip.{StreamChannel, TLHelper}
+import freechips.rocketchip.rocket.StreamChannel
+import testchipip.TLHelper
 
 class StreamReadRequest extends Bundle {
   val address = UInt(48.W)

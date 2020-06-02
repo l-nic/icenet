@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.unittest.UnitTest
 import scala.util.Random
-import testchipip.{StreamIO, StreamChannel}
+import freechips.rocketchip.rocket.{StreamIO, StreamChannel}
 import IceNetConsts._
 
 class BufferBRAM[T <: Data](n: Int, typ: T) extends Module {

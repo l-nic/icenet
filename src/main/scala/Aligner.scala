@@ -3,7 +3,7 @@ package icenet
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.unittest.UnitTest
-import testchipip.StreamIO
+import freechips.rocketchip.rocket.StreamIO
 import IceNetConsts._
 
 class Aligner(dataBits: Int) extends Module {
