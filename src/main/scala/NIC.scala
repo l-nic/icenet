@@ -511,9 +511,22 @@ trait CanHavePeripheryIceNICModuleImp extends LazyModuleImp {
 
   def connectSimNetwork(clock: Clock, reset: Bool) {
     val sim = Module(new SimNetwork)
+    val latency = Module(new LatencyModule)
     sim.io.clock := clock
     sim.io.reset := reset
-    sim.io.net <> net.get
+    sim.io.net.out <> latency.io.net.out
+    latency.io.net.in <> sim.io.net.in
+    latency.io.nic.in <> net.get.out
+    net.get.in <> latency.io.nic.out
+
+    net.get.macAddr := PlusArg("macaddr")
+    net.get.rlimit.inc := PlusArg("rlimit-inc", 1)
+    net.get.rlimit.period := PlusArg("rlimit-period", 1)
+    net.get.rlimit.size := PlusArg("rlimit-size", 8)
+    net.get.pauser.threshold := PlusArg("pauser-threshold", 2 * packetWords + 10)
+    net.get.pauser.quanta := PlusArg("pauser-quanta", 2 * packetQuanta)
+    net.get.pauser.refresh := PlusArg("pauser-refresh", packetWords)
+    //sim.io.net <> net.get
   }
 }
 

@@ -29,7 +29,8 @@ extern "C" void network_init(
 
     *rlimit_inc = inc / gcd;
     *rlimit_period = (period / gcd) - 1;
-
+    devname = "tap0";
+    printf("Devname is %s\n", devname);
     netsw = new NetworkSwitch(devname);
     netdev = new NetworkDevice(random_macaddr());
 
