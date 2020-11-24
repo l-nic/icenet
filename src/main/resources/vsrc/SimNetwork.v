@@ -1,113 +1,109 @@
-import "DPI-C" function void network_tick
-(
-    input  bit     out_valid,
-    input  longint out_data,
-    input  bit     out_last,
 
-    output bit     in_valid,
-    output longint in_data,
-    output bit     in_last,
-
-    output longint macaddr
-);
-
-import "DPI-C" function void network_init(
+import "DPI-C" function void network_tick (
     input string devname,
-    input int rlimit_gbps,
-    output byte rlimit_inc,
-    output byte rlimit_period
+
+    input  bit      tx_valid,
+    output bit      tx_ready,
+    input  longint  tx_data,
+    input  byte     tx_keep,
+    input  bit      tx_last,
+
+    output bit      rx_valid,
+    input  bit      rx_ready,
+    output longint  rx_data,
+    output byte     rx_keep,
+    output bit      rx_last,
+
+    output longint  nic_mac_addr
 );
 
-module SimNetwork(
-    input         clock,
-    input         reset,
-
-    input         net_out_valid,
-    input  [63:0] net_out_bits_data,
-    input  [7:0]  net_out_bits_keep,
-    input         net_out_bits_last,
-
-    output        net_in_valid,
-    output [63:0] net_in_bits_data,
-    output [7:0]  net_in_bits_keep,
-    output        net_in_bits_last,
-
-    output [47:0] net_macAddr,
-    output [7:0]  net_rlimit_inc,
-    output [7:0]  net_rlimit_period,
-    output [7:0]  net_rlimit_size,
-
-    output [15:0] net_pauser_threshold,
-    output [15:0] net_pauser_quanta,
-    output [15:0] net_pauser_refresh
+import "DPI-C" function void network_init (
+    input string    devname,
+    input longint   nic_mac_addr
 );
-    // TODO: Make this work with the pauser
 
-    assign net_pauser_threshold = 16'hff;
-    assign net_pauser_quanta = 16'hff;
-    assign net_pauser_refresh = 16'hff;
+module SimNetwork #(
+  parameter DEVNAME = "tap0"
+)
+(
+    input             clock,
+    input             reset,
 
+    // TX packets: HW --> tap iface
+    input             net_out_valid,
+    input  [63:0]     net_out_bits_data,
+    input  [7:0]      net_out_bits_keep,
+    input             net_out_bits_last,
 
-    string devname = "";
-    int rlimit_gbps = 64;
-    byte rlimit_inc = 1;
-    byte rlimit_period = 1;
-    byte rlimit_size = 8;
+    // RX packets: tap iface --> HW
+    output reg        net_in_valid,
+    output reg [63:0] net_in_bits_data,
+    output reg [7:0]  net_in_bits_keep,
+    output reg        net_in_bits_last,
+
+    output [47:0]     net_macAddr,
+    // rate limiter settings
+    output [7:0]      net_rlimit_inc,
+    output [7:0]      net_rlimit_period,
+    output [7:0]      net_rlimit_size,
+    // pauser settings - NOTE: currently unused
+    output [15:0]     net_pauser_threshold,
+    output [15:0]     net_pauser_quanta,
+    output [15:0]     net_pauser_refresh
+);
+
+    string devname = DEVNAME;
+    longint nic_mac_addr = 0;
+
+    // NOTE: currently unused
+    reg net_out_ready;
     int dummy;
 
-    bit __in_valid;
-    longint __in_data;
-    bit __in_last;
-    longint __macaddr;
-
-    reg        __in_valid_reg;
-    reg [63:0] __in_data_reg;
-    reg        __in_last_reg;
-    reg [47:0] __macaddr_reg;
+    longint _nic_mac_addr;
+    reg [63:0] _nic_mac_addr_reg;
 
     initial begin
-        dummy = $value$plusargs("netbw=%d", rlimit_gbps);
-        dummy = $value$plusargs("netburst=%d", rlimit_size);
-        dummy = $value$plusargs("netdev=%s", devname);
-        network_init(devname, rlimit_gbps, rlimit_inc, rlimit_period);
+        dummy = $value$plusargs("nic_mac_addr=%h", nic_mac_addr);
+        network_init(devname, nic_mac_addr);
     end
 
-    /* verilator lint_off WIDTH */
-    always @(posedge clock) begin
+    // NOTE: rlimit and pauser settings are currently unused
+    assign net_rlimit_inc = 1;
+    assign net_rlimit_period = 1;
+    assign net_rlimit_size = 8;
+    assign net_pauser_threshold = 0;
+    assign net_pauser_quanta = 0;
+    assign net_pauser_refresh = 0;
+
+    always@(posedge clock) begin
         if (reset) begin
-            __in_valid = 0;
-            __in_data = 0;
-            __in_last = 0;
-
-            __in_valid_reg <= 1'b0;
-            __in_data_reg <= 64'b0;
-            __in_last_reg <= 1'b0;
-        end else begin
+            net_out_ready = 0;
+            net_in_valid = 0;
+            net_in_bits_data = 0;
+            net_in_bits_keep = 0;
+            net_in_bits_last = 0;
+        end
+        else begin
             network_tick(
+                devname,
+
                 net_out_valid,
+                net_out_ready,
                 net_out_bits_data,
+                net_out_bits_keep,
                 net_out_bits_last,
-
-                __in_valid,
-                __in_data,
-                __in_last,
-
-                __macaddr);
-
-            __in_valid_reg <= __in_valid;
-            __in_data_reg <= __in_data;
-            __in_last_reg <= __in_last;
-            __macaddr_reg <= __macaddr;
+    
+                net_in_valid,
+                1'b1,
+                net_in_bits_data,
+                net_in_bits_keep,
+                net_in_bits_last,
+                
+                _nic_mac_addr);
+            _nic_mac_addr_reg <= _nic_mac_addr;
         end
     end
 
-    assign net_in_valid = __in_valid_reg;
-    assign net_in_bits_data = __in_data_reg;
-    assign net_in_bits_keep = 8'hff;
-    assign net_in_bits_last = __in_last_reg;
-    assign net_macAddr = __macaddr_reg;
-    assign net_rlimit_inc = rlimit_inc;
-    assign net_rlimit_period = rlimit_period;
-    assign net_rlimit_size = rlimit_size;
+    assign net_macAddr = _nic_mac_addr_reg[47:0];
 
 endmodule

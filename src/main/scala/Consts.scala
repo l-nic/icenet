@@ -1,6 +1,7 @@
 package icenet
 
 import chisel3._
+import freechips.rocketchip.rocket.LNICRocketConsts._
 
 object IceNetConsts {
   val NET_IF_WIDTH = 64
@@ -39,4 +40,8 @@ object IceNetConsts {
 
   val IPV4_ETHTYPE = 0x0008
   val TCP_PROTOCOL = 0x06
+  val LNIC_PROTO = 0x99
+
+  // NOTE: these are only used for the Simulation Timestamp/Latency measurement module
+  val TEST_CONTEXT_ID = 0x1234.U(LNIC_CONTEXT_BITS.W)
 }

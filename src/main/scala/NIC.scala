@@ -2,13 +2,15 @@ package icenet
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental._
 import freechips.rocketchip.subsystem.BaseSubsystem
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.regmapper.{HasRegMap, RegField}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
-import freechips.rocketchip.rocket.{StreamIO, StreamChannel}
+import freechips.rocketchip.rocket.{StreamIO, StreamIOvonly, StreamChannel}
+import freechips.rocketchip.rocket.NetworkHelpers._
 import testchipip.TLHelper
 import IceNetConsts._
 
@@ -410,8 +412,6 @@ class SimNetwork extends BlackBox with HasBlackBoxResource {
   addResource("/csrc/SimNetwork.cc")
   addResource("/csrc/device.h")
   addResource("/csrc/device.cc")
-  addResource("/csrc/switch.h")
-  addResource("/csrc/switch.cc")
   addResource("/csrc/packet.h")
 }
 
@@ -477,7 +477,12 @@ trait CanHavePeripheryIceNICModuleImp extends LazyModuleImp {
 
   val net = outer.icenicOpt.map { icenic =>
     val nicio = IO(new NICIOvonly)
-    nicio <> NICIOvonly(icenic.module.io.ext)
+    val vonly = NICIOvonly(icenic.module.io.ext)
+    nicio.out <> vonly.out
+    vonly.in <> nicio.in
+    vonly.macAddr := nicio.macAddr
+    vonly.rlimit := nicio.rlimit
+    vonly.pauser := nicio.pauser
     nicio
   }
 
@@ -512,9 +517,148 @@ trait CanHavePeripheryIceNICModuleImp extends LazyModuleImp {
 
   def connectSimNetwork(clock: Clock, reset: Bool) {
     val sim = Module(new SimNetwork)
+    val latency = Module(new LatencyModule)
     sim.io.clock := clock
     sim.io.reset := reset
-    sim.io.net <> net.get
+
+    sim.io.net.out <> latency.io.net.out
+    latency.io.net.in <> sim.io.net.in
+
+    latency.io.nic.in <> net.get.out
+    net.get.in <> latency.io.nic.out
+
+    // plus args used inside SimNetwork module
+    val nic_mac_addr = PlusArg("nic_mac_addr",
+                               docstring = "MAC address of the NIC",
+                               width = 64)
+
+    net.get.macAddr := sim.io.net.macAddr
+    net.get.rlimit := sim.io.net.rlimit
+    net.get.pauser := sim.io.net.pauser
   }
+}
+
+// ---- Latency Module copied over from LNIC repo ---- //
+
+/**
+ * Parse Eth/IP/LNIC headers.
+ * Check if LNIC src/dst port indicates test_app then insert timestamp/latency measurement
+ * If yes:
+ *   For DATA pkts going to core, record timestamp of the first word in the last 4 bytes of pkt.
+ *   For DATA pkts coming from core, record timestamp in second to last 4B of pkt, and record latency
+ *     in last 4B of pkt (i.e. now - pkt_timestamp)
+ * NOTE: current implementation assumes 8-byte aligned pkts.
+ */
+@chiselName
+class LatencyModule extends Module {
+  val io = IO(new Bundle {
+    val net = new StreamIOvonly(NET_IF_WIDTH)
+    val nic = new StreamIOvonly(NET_IF_WIDTH)
+  })
+
+  val nic_ts = Module(new Timestamp(to_nic = true))
+  nic_ts.io.net.in <> io.net.in
+  io.nic.out <> nic_ts.io.net.out
+
+  val net_ts = Module(new Timestamp(to_nic = false))
+  net_ts.io.net.in <> io.nic.in
+  io.net.out <> net_ts.io.net.out
+}
+
+@chiselName
+class Timestamp(to_nic: Boolean = true) extends Module {
+  val io = IO(new Bundle {
+   val net = new StreamIOvonly(NET_IF_WIDTH)
+  })
+
+  val net_word_0 = Reg(Valid(new StreamChannel(NET_IF_WIDTH)))
+  val net_word = RegNext(net_word_0)
+
+  net_word_0.valid := io.net.in.valid
+  io.net.out.valid := net_word.valid // default
+  net_word_0.bits := io.net.in.bits
+  io.net.out.bits := net_word.bits
+
+  // state machine to parse headers
+  val sWordOne :: sWordTwo :: sWordThree :: sWordFour :: sWordFive :: sWordSix :: sWaitEnd :: Nil = Enum(7)
+  val state = RegInit(sWordOne)
+
+  val reg_now = RegInit(0.U(32.W))
+  reg_now := reg_now + 1.U
+
+  val reg_ts_start = RegInit(0.U)
+  val reg_eth_type = RegInit(0.U)
+  val reg_ip_proto = RegInit(0.U)
+  val reg_lnic_flags = RegInit(0.U)
+  val reg_lnic_src = RegInit(0.U)
+  val reg_lnic_dst = RegInit(0.U)
+
+  val new_data = Wire(UInt(NET_IF_WIDTH.W))
+  new_data := net_word.bits.data // default
+
+  switch (state) {
+    is (sWordOne) {
+      reg_ts_start := reg_now
+      transition(sWordTwo)
+    }
+    is (sWordTwo) {
+      reg_eth_type := reverse_bytes(net_word.bits.data(47, 32), 2)
+      transition(sWordThree)
+    }
+    is (sWordThree) {
+      reg_ip_proto := net_word.bits.data(63, 56)
+      transition(sWordFour)
+    }
+    is (sWordFour) {
+      transition(sWordFive)
+    }
+    is (sWordFive) {
+      reg_lnic_flags := net_word.bits.data(23, 16)
+      reg_lnic_src := reverse_bytes(net_word.bits.data(39, 24), 2)
+      reg_lnic_dst := reverse_bytes(net_word.bits.data(55, 40), 2)
+      transition(sWordSix)
+    }
+    is (sWordSix) {
+      transition(sWaitEnd)
+    }
+    is (sWaitEnd) {
+      when (net_word.valid && net_word.bits.last) {
+        state := sWordOne
+        // overwrite last bytes with timestamp / latency
+        val is_lnic_data = Wire(Bool())
+        is_lnic_data := reg_eth_type === IPV4_ETHTYPE.U(16.W) && reg_ip_proto === LNIC_PROTO.U(8.W) && reg_lnic_flags(0).asBool
+        when (is_lnic_data) {
+          val insert_timestamp = Wire(Bool())
+          insert_timestamp:= to_nic.B && (reg_lnic_src === TEST_CONTEXT_ID)
+          val insert_latency = Wire(Bool())
+          insert_latency := !to_nic.B && (reg_lnic_dst === TEST_CONTEXT_ID)
+          when (insert_timestamp) {
+            new_data := Cat(reverse_bytes(reg_ts_start, 4), net_word.bits.data(31, 0))
+            io.net.out.bits.data := new_data
+            io.net.out.bits.keep := net_word.bits.keep
+            io.net.out.bits.last := net_word.bits.last
+          } .elsewhen (insert_latency) {
+            val pkt_ts = reverse_bytes(net_word.bits.data(63, 32), 4)
+            new_data := Cat(reverse_bytes(reg_now - pkt_ts, 4), reverse_bytes(reg_now, 4))
+            // last 4B is latency, first 4B is timestamp
+            io.net.out.bits.data := new_data
+            io.net.out.bits.keep := net_word.bits.keep
+            io.net.out.bits.last := net_word.bits.last
+          }
+        }
+      }
+    }
+  }
+
+  def transition(next_state: UInt) = {
+    when (net_word.valid) {
+      when (!net_word.bits.last) {
+        state := next_state
+      } .otherwise {
+        state := sWordOne
+      }
+    }
+  }
+
 }
 

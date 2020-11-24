@@ -1,65 +1,59 @@
 #include <vpi_user.h>
 #include <svdpi.h>
+
 #include <stdio.h>
+#include <string>
+#include <unordered_map>
 
 #include "device.h"
-#include "switch.h"
 
-class NetworkSwitch *netsw = NULL;
-class NetworkDevice *netdev = NULL;
-
-static inline int euclid(int a, int b)
-{
-    while (b > 0) {
-        int t = b;
-        b = a % b;
-        a = t;
-    }
-    return a;
-}
+std::unordered_map<std::string, NetworkDevice*> netdev_map;
 
 extern "C" void network_init(
-        const char *devname,
-        int rlimit_gbps,
-        char *rlimit_inc,
-        char *rlimit_period)
+        const char   *devname,
+        long long    nic_mac_addr)
 {
-    int inc = rlimit_gbps, period = 64;
-    int gcd = euclid(inc, period);
-
-    *rlimit_inc = inc / gcd;
-    *rlimit_period = (period / gcd) - 1;
-
-    netsw = new NetworkSwitch(devname);
-    netdev = new NetworkDevice(random_macaddr());
-
-    netsw->add_device(netdev);
+    netdev_map[std::string(devname)] = new NetworkDevice(devname, nic_mac_addr);
 }
 
 extern "C" void network_tick(
-        unsigned char out_valid,
-        long long     out_data,
-        unsigned char out_last,
+        const char *devname,
 
-        unsigned char *in_valid,
-        long long     *in_data,
-        unsigned char *in_last,
+        unsigned char tx_valid,
+        unsigned char *tx_ready,
+        long long     tx_data,
+        char          tx_keep,
+        unsigned char tx_last,
 
-        long long     *macaddr)
+        unsigned char *rx_valid,
+        unsigned char rx_ready,
+        long long     *rx_data,
+        char          *rx_keep,
+        unsigned char *rx_last,
+        
+        long long     *nic_mac_addr)
 {
-    if (!netdev || !netsw) {
-      fprintf(stderr, "You forgot to call network_init!");
-      exit(1);
+    NetworkDevice *netdev = netdev_map[std::string(devname)];
+
+    if (!netdev) {
+        *tx_ready = 0;
+        *rx_valid = 0;
+        *rx_data = 0;
+        *rx_keep = 0;
+        *rx_last = 0;
+        return;
     }
 
-    netdev->tick(out_valid, out_data, out_last);
-    netdev->switch_to_host();
+    netdev->tick_tx(tx_valid, tx_data, tx_keep, tx_last);
 
-    netsw->distribute();
-    netsw->switch_to_worker();
+    *tx_ready = netdev->tx_ready();
+    *rx_valid = netdev->rx_valid();
+    *rx_data = netdev->rx_data();
+    *rx_keep = netdev->rx_keep();
+    *rx_last = netdev->rx_last();
 
-    *in_valid = netdev->in_valid();
-    *in_data = netdev->in_data();
-    *in_last = netdev->in_last();
-    *macaddr = netdev->macaddr();
+    *nic_mac_addr = netdev->nic_mac_addr();
+
+    netdev->tick_rx(rx_ready);
+
 }
