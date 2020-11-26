@@ -15,7 +15,7 @@ import testchipip.TLHelper
 import IceNetConsts._
 
 case class NICConfig(
-  inBufFlits: Int  = 2 * ETH_STANDARD_MAX_BYTES / NET_IF_BYTES,
+  inBufFlits: Int  = 100 * ETH_STANDARD_MAX_BYTES / NET_IF_BYTES,
   outBufFlits: Int = 2 * ETH_STANDARD_MAX_BYTES / NET_IF_BYTES,
   nMemXacts: Int = 8,
   maxAcquireBytes: Int = 64,
@@ -631,7 +631,8 @@ class Timestamp(to_nic: Boolean = true) extends Module {
           val insert_timestamp = Wire(Bool())
           insert_timestamp:= to_nic.B && (reg_lnic_src === TEST_CONTEXT_ID)
           val insert_latency = Wire(Bool())
-          insert_latency := !to_nic.B && (reg_lnic_dst === TEST_CONTEXT_ID)
+          // NOTE: this assumes the program does NOT swap LNIC src/dst fields!
+          insert_latency := !to_nic.B && (reg_lnic_src === TEST_CONTEXT_ID)
           when (insert_timestamp) {
             new_data := Cat(reverse_bytes(reg_ts_start, 4), net_word.bits.data(31, 0))
             io.net.out.bits.data := new_data
