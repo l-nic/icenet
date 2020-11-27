@@ -16,13 +16,13 @@ import IceNetConsts._
 
 case class NICConfig(
   inBufFlits: Int  = 100 * ETH_STANDARD_MAX_BYTES / NET_IF_BYTES,
-  outBufFlits: Int = 2 * ETH_STANDARD_MAX_BYTES / NET_IF_BYTES,
+  outBufFlits: Int = 10 * ETH_STANDARD_MAX_BYTES / NET_IF_BYTES,
   nMemXacts: Int = 8,
   maxAcquireBytes: Int = 64,
-  ctrlQueueDepth: Int = 10,
+  ctrlQueueDepth: Int = 100,
   usePauser: Boolean = false,
   checksumOffload: Boolean = false,
-  packetMaxBytes: Int = ETH_STANDARD_MAX_BYTES)
+  packetMaxBytes: Int = ETH_JUMBO_MAX_BYTES)
 
 case object NICKey extends Field[Option[NICConfig]](None)
 
